@@ -1,4 +1,3 @@
-<img width="1029" height="341" alt="image-20260510191026367" src="https://github.com/user-attachments/assets/ce29573c-54eb-4a25-939f-1c6bac5ef117" />
 # 智慧出行数据集成处理系统
 
 ------
@@ -11,9 +10,93 @@
 
 ## 二、模块介绍和技术选型
 
-模块介绍
+1. 实时接入：海口订单 + 成都 GPS（Structured Streaming）
 
-技术选型
+2. 批处理：虚拟车站选取（空间计算 + 行政区匹配）
+
+3. 实时同步：MySQL → Kafka → HBase（Maxwell）
+
+4. 批处理：订单 + 用户行为联表统计（自定义 HBase 数据源）
+
+
+------
+
+## 三、项目环境
+
+**2核4GB × 3台（共12GB）**
+**centos9**
+
+## 📦 集群组件版本清单
+
+| 组件          | 版本   | 安装路径                              | 备注                     |
+| :------------ | :----- | :------------------------------------ | :----------------------- |
+| **Hadoop**    | 3.3.6  | `/opt/module/hadoop-3.3.6`            | HDFS + YARN              |
+| **Spark**     | 3.5.8  | `/opt/module/spark-3.5.8-bin-hadoop3` | 含 Spark SQL / Streaming |
+| **HBase**     | 2.5.8  | `/opt/module/hbase-2.5.8`             | 含 Hadoop3 适配包        |
+| **Kafka**     | 3.6.2  | `/opt/module/kafka_2.12-3.6.2`        | Scala 2.12 版本          |
+| **Flume**     | 1.11.0 | `/opt/module/flume-1.11.0`            | 日志采集                 |
+| **Maxwell**   | 1.43.2 | `/opt/module/maxwell-1.43.2`          | CDC 工具                 |
+| **ZooKeeper** | 3.6.3  | `/opt/module/zookeeper-3.6.3`         | 分布式协调               |
+| **Hive**      | 4.0.0  | `/opt/module/hive-4.0.0`              | 数据仓库（备选）         |
+| **Tez**       | 0.10.3 | `/opt/module/tez-0.10.3`              | Hive 引擎（备选）        |
+
+------
+
+## 🔧 JDK 版本（多版本共存）
+
+| 用途                                           | JDK 版本      | 路径                                                    |
+| :--------------------------------------------- | :------------ | :------------------------------------------------------ |
+| **主要 JDK**（Hadoop / HBase / Spark / Kafka） | **1.8.0_202** | `/opt/module/jdk1.8.0_202`                              |
+| **Maxwell 专用**（兼容性需要）                 | **11.0.20.1** | `/usr/lib/jvm/java-11-openjdk-11.0.20.1.1-2.el9.x86_64` |
+
+> ✅ Maxwell 单独使用 Java 11，不影响其他组件
+
+------
+
+## 🌐 集群节点与服务分布（3 节点）
+
+| 服务 / 节点              | hadoop2427 | hadoop2428 | hadoop2429 |
+| :----------------------- | :--------- | :--------- | :--------- |
+| **HDFS NameNode**        | ❌          | ❌          | ✅          |
+| **HDFS DataNode**        | ✅          | ✅          | ✅          |
+| **YARN ResourceManager** | ❌          | ✅          | ❌          |
+| **YARN NodeManager**     | ✅          | ✅          | ✅          |
+| **HBase Master**         | ❌          | ❌          | ✅          |
+| **HBase RegionServer**   | ✅          | ✅          | ✅          |
+| **Kafka Broker**         | ✅          | ✅          | ✅          |
+| **ZooKeeper**            | ✅          | ✅          | ✅          |
+| **Spark (Client)**       | ✅          | ✅          | ✅          |
+| **Flume**                | ✅          | ❌          | ❌          |
+| **Maxwell**              | ✅          | ❌          | ❌          |
+| **MySQL**                | ✅          | ❌          | ❌          |
+
+----------
+
+## 四、项目架构
+### 1. 实时接入：海口订单 + 成都 GPS（Structured Streaming）
+），Kafka 9分区
+基于 Flume + Kafka + Structured Streaming + HBase 构建稳定实时接入链路，GC < 3%，无 OOM
+端到端批次延迟稳定 ≤ 6 秒
+累计运行 28 分钟，处理 258 个微批次
+向 HBase 写入 5.6 万条有效数据：海口订单 3.3 万 / 成都轨迹 2.4 万
+峰值吞吐 ≈ 500 条/秒
+3. 批处理：虚拟车站选取（空间计算 + 行政区匹配）
+通过 reduceByKey 完成按行政区聚合，Shuﬄe Read 仅 104 KB，无数据倾斜
+DAG 包含：几何计算、WKT 解析、行政区匹配、去重与写入
+最终写入 Stage 耗时 7 秒，GC 占比 2.8%
+写入 13,706 条虚拟车站数据，过滤 3 条无效边界数据
+4. 实时同步：MySQL → Kafka → HBase（Maxwell）
+使用 Maxwell 同步业务库，成功迁移 45 万+ 条数据
+（订单 35.6 万 / 用户 8.3 万 / 司机 0.9 万）
+吞吐量 ≈ 622 条/秒，平均延迟 < 10 秒
+通过 Checkpoint + Kafka 偏移量实现 Exactly‑Once，数据不丢不重
+优化 RowKey 设计（MD5 哈希预分区），有效避免数据倾斜
+5. 批处理：订单 + 用户行为联表统计（自定义 HBase 数据源）
+一次性读入订单（35.6w）、用户（8.3w）、司机（0.9w）三张 HBase 表，总数据量 ≈45 万条，完成日 / 周 / 月订单统计及司机和乘客行为统计
+优化前
+spark程序未实现与hbase 9分区对齐，程序总处理耗时4min+
+优化后
+调整为 9 分区读入 + 合并分区写，减少聚合结果表写入开销，端到端耗时降至min+，任务耗时降低 43%
 
 -----
 
