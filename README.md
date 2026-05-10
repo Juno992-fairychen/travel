@@ -1,3 +1,4 @@
+<img width="1029" height="341" alt="image-20260510191026367" src="https://github.com/user-attachments/assets/ce29573c-54eb-4a25-939f-1c6bac5ef117" />
 # 智慧出行数据集成处理系统
 
 ------
@@ -20,17 +21,20 @@
 
 **轨迹监控**
 
-![image-20260510191026367](C:\Users\Dell\AppData\Roaming\Typora\typora-user-images\image-20260510191026367.png)
+<img width="1029" height="341" alt="image-20260510191026367" src="https://github.com/user-attachments/assets/6a8eaef1-05ab-4397-8a45-0ac99c092548" />
+
 
 **虚拟车站**
 
-![image-20260510190904804](C:\Users\Dell\AppData\Roaming\Typora\typora-user-images\image-20260510190904804.png)
+<img width="718" height="876" alt="image-20260510190904804" src="https://github.com/user-attachments/assets/ee52260a-0d8d-416f-8961-757164b63dc8" />
+
 
 
 
 **Maxwell采集binlog日志**
 
-![image-20260510191238339](C:\Users\Dell\AppData\Roaming\Typora\typora-user-images\image-20260510191238339.png)
+<img width="1018" height="291" alt="image-20260510191238339" src="https://github.com/user-attachments/assets/2264f73a-c22e-4906-b7db-96ebc1a1f128" />
+
 
 
 
