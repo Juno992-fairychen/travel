@@ -1,0 +1,29 @@
+spring:
+  mvc:
+    view:
+      prefix: /
+      suffix: .html
+
+  main:
+    web-application-type: servlet
+
+  application:
+    name: travel_web
+
+  datasource:
+    driver-class-name: org.apache.phoenix.jdbc.PhoenixDriver
+    url: jdbc:phoenix:hadoop2429,hadoop2428,hadoop2427:2181
+    type: com.alibaba.druid.pool.DruidDataSource
+
+# 注意：server 配置如果你想启用，记得把前面的 # 去掉，并确保层级对齐
+server:
+  port: 8080
+
+mybatis:
+  mapper-locations: classpath:mappers/*.xml
+
+logging:
+  level:
+    com.travel.dao: debug
+
+

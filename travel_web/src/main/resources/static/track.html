@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>实时轨迹监控</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .title { font-size: 20px; font-weight: bold; }
+        .order-info {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .control-panel {
+            background: #f5f5f5;
+            padding: 15px 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .control-panel label { font-weight: bold; }
+        #orderId {
+            width: 350px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        button:hover { background: #5a67d8; transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        .btn-stop { background: #e53e3e; }
+        .btn-stop:hover { background: #c53030; }
+        .status {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-running { background: #48bb78; color: white; }
+        .status-stopped { background: #a0aec0; color: white; }
+        .info {
+            background: #e2e8f0;
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #4a5568;
+        }
+        #container { width: 100%; height: calc(100vh - 140px); }
+    </style>
+    <!-- 高德地图配置 -->
+    <script type="text/javascript">
+        window._AMapSecurityConfig = {
+            securityJsCode: '8f225145f9b388197144f53898cc01c7'
+        };
+    </script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=072f2f668ff800e85f8489325c1ac14d"></script>
+</head>
+<body>
+<div class="header">
+    <div class="title">🚗 海口订单实时轨迹监控</div>
+    <div class="order-info">实时位置每3秒自动刷新</div>
+</div>
+<div class="control-panel">
+    <label>订单ID:</label>
+    <input type="text" id="orderId" placeholder="请输入订单ID" value="075_003659137705e30efad71e428ba9ddd3">
+    <button onclick="startRealtime()">▶ 开始实时监控</button>
+    <button onclick="stopRealtime()" class="btn-stop">⏹ 停止监控</button>
+    <button onclick="queryHistory()">📜 查询历史轨迹</button>
+    <div id="status" class="status status-stopped">已停止</div>
+    <div id="positionInfo" class="info">等待数据...</div>
+</div>
+<div id="container"></div>
+
+<script>
+    var map = null;
+    var marker = null;          // 车辆标记
+    var polyline = null;        // 历史轨迹线
+    var timer = null;           // 定时器
+    var currentOrderId = null;  // 当前监控的订单
+
+    // 初始化地图
+    function initMap() {
+        if (typeof AMap === 'undefined') {
+            console.error('高德地图加载失败');
+            return;
+        }
+        map = new AMap.Map('container', {
+            zoom: 14,
+            center: [110.35, 20.04],
+            viewMode: '2D'
+        });
+
+        // 创建车辆标记（使用自定义图标）
+        marker = new AMap.Marker({
+            position: [110.35, 20.04],
+            icon: new AMap.Icon({
+                size: new AMap.Size(32, 32),
+                image: 'https://a.amap.com/jsapi_demos/static/demo-center/icons/car.png',
+                imageSize: new AMap.Size(32, 32)
+            }),
+            offset: new AMap.Pixel(-16, -16)
+        });
+        map.add(marker);
+    }
+
+    // 更新状态显示
+    function updateStatus(isRunning, position) {
+        var statusDiv = document.getElementById('status');
+        var posDiv = document.getElementById('positionInfo');
+
+        if (isRunning) {
+            statusDiv.className = 'status status-running';
+            statusDiv.innerText = '● 实时监控中 (每3秒)';
+        } else {
+            statusDiv.className = 'status status-stopped';
+            statusDiv.innerText = '已停止';
+        }
+
+        if (position) {
+            posDiv.innerHTML = '📍 最新位置: ' + position.lng + ', ' + position.lat + ' | 更新时间: ' + new Date().toLocaleTimeString();
+        }
+    }
+
+    // 获取实时位置并更新地图
+    function fetchRealTimePosition() {
+        if (!currentOrderId) return;
+
+        fetch('/track/realTimeTrack', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({orderId: currentOrderId})
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.data) {
+                var lnglat = data.data.split(',');
+                var position = {lng: parseFloat(lnglat[0]), lat: parseFloat(lnglat[1])};
+
+                // 更新车辆标记位置
+                marker.setPosition([position.lng, position.lat]);
+
+                // 移动地图中心到车辆位置
+                map.setCenter([position.lng, position.lat]);
+
+                // 更新显示
+                updateStatus(true, position);
+            }
+        })
+        .catch(err => console.error('获取实时位置失败:', err));
+    }
+
+    // 查询历史轨迹并绘制
+    function queryHistory() {
+        var orderId = document.getElementById('orderId').value;
+        if (!orderId) {
+            alert('请输入订单ID');
+            return;
+        }
+
+        console.log('查询历史轨迹:', orderId);
+
+        fetch('/track/historyTrackPoints', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({orderId: orderId})
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.data && data.data.length > 0) {
+                var points = data.data.map(function(p) {
+                    return [parseFloat(p.lng), parseFloat(p.lat)];
+                });
+
+                // 清除旧的轨迹线
+                if (polyline) {
+                    map.remove(polyline);
+                }
+
+                // 绘制新的轨迹线
+                polyline = new AMap.Polyline({
+                    path: points,
+                    strokeColor: "#FF0000",
+                    strokeWeight: 4,
+                    strokeOpacity: 0.8
+                });
+                map.add(polyline);
+
+                // 添加起点和终点标记
+                var startPoint = points[0];
+                var endPoint = points[points.length - 1];
+
+                var startMarker = new AMap.Marker({
+                    position: startPoint,
+                    map: map,
+                    icon: 'https://a.amap.com/jsapi_demos/static/demo-center/icons/start.png',
+                    offset: new AMap.Pixel(-12, -12)
+                });
+
+                var endMarker = new AMap.Marker({
+                    position: endPoint,
+                    map: map,
+                    icon: 'https://a.amap.com/jsapi_demos/static/demo-center/icons/end.png',
+                    offset: new AMap.Pixel(-12, -12)
+                });
+
+                // 保存起点终点标记以便清除
+                if (window.startMarker) window.startMarker.setMap(null);
+                if (window.endMarker) window.endMarker.setMap(null);
+                window.startMarker = startMarker;
+                window.endMarker = endMarker;
+
+                map.setFitView();
+                alert('成功加载 ' + points.length + ' 个历史轨迹点');
+            } else {
+                alert('未查询到轨迹数据');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('查询失败: ' + err.message);
+        });
+    }
+
+    // 开始实时监控
+    function startRealtime() {
+        var orderId = document.getElementById('orderId').value;
+        if (!orderId) {
+            alert('请输入订单ID');
+            return;
+        }
+
+        // 停止之前的监控
+        stopRealtime();
+
+        currentOrderId = orderId;
+
+        // 先查询一次历史轨迹
+        queryHistory();
+
+        // 立即获取一次实时位置
+        fetchRealTimePosition();
+
+        // 设置定时器，每3秒获取一次实时位置
+        timer = setInterval(fetchRealTimePosition, 3000);
+
+        updateStatus(true, null);
+        console.log('开始实时监控订单:', orderId);
+    }
+
+    // 停止实时监控
+    function stopRealtime() {
+        if (timer) {
+            clearInterval(timer);
+            timer = null;
+        }
+        currentOrderId = null;
+        updateStatus(false, null);
+        console.log('停止实时监控');
+    }
+
+    // 页面关闭时清理定时器
+    window.onbeforeunload = function() {
+        if (timer) {
+            clearInterval(timer);
+        }
+    };
+
+    // 初始化
+    window.onload = function() {
+        initMap();
+
+        // 默认输入框的值
+        var defaultOrderId = '075_003659137705e30efad71e428ba9ddd3';
+        document.getElementById('orderId').value = defaultOrderId;
+
+        // 可选：自动开始监控
+        // startRealtime();
+    };
+</script>
+</body>
+</html>

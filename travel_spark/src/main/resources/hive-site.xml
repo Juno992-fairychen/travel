@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+
+    <property>
+        <name>javax.jdo.option.ConnectionURL</name>
+    </property>
+    <property>
+        <name>hive.kryo.reg</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>hive.strict.managed.tables</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>hive.create.as.acid</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>hive.default.fileformat</name>
+        <value>TextFile</value>
+    </property>
+    <property>
+        <name>hive.vectorized.execution.enabled</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>hive.vectorized.execution.reduce.enabled</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>hive.kryo.registration.required</name>
+        <value>false</value>
+    </property>
+    <property>
+        <name>hive.stats.autogather</name>
+        <value>false</value>
+    </property>
+</configuration>

@@ -1,0 +1,2 @@
+com.travel.programApp.hbaseSource.HBaseSource
+com.travel.programApp.hbaseSink.HBaseSink
